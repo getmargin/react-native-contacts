@@ -62,19 +62,17 @@ RCT_EXPORT_METHOD(requestPermission:(RCTResponseSenderBlock) callback)
 }
 
 RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
-                             withThumbnails:(BOOL) withThumbnails
                                    callback:(RCTResponseSenderBlock) callback
                                    )
 {
     CNContactStore *contactStore = [[CNContactStore alloc] init];
     if (!contactStore)
         return;
-    [self getContactsFromAddressBook:contactStore matchingString:string withThumbnails:withThumbnails callback:callback];
+    [self getContactsFromAddressBook:contactStore matchingString:string callback:callback];
 }
 
 -(void) getContactsFromAddressBook:(CNContactStore *)store
                     matchingString:(NSString *)searchString
-                    withThumbnails:(BOOL) withThumbnails
                           callback:(RCTResponseSenderBlock)callback
 {
     NSMutableArray<CNContact*> *contacts = [[NSMutableArray alloc] init];
@@ -93,23 +91,18 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
         CNContactPhoneticFamilyNameKey
         ];
 
-    NSMutableArray *keys = [[NSMutableArray alloc]init];
-    [keys addObjectsFromArray:nameKeys];
-    [keys addObjectsFromArray:@[
+    NSArray *keys = [nameKeys arrayByAddingObjectsFromArray:@[
         CNContactEmailAddressesKey,
         CNContactPhoneNumbersKey,
         CNContactPostalAddressesKey,
         CNContactOrganizationNameKey,
         CNContactJobTitleKey,
         CNContactImageDataAvailableKey,
+        CNContactThumbnailImageDataKey,
         CNContactNoteKey,
         CNContactUrlAddressesKey,
         CNContactBirthdayKey
-        ]];
-
-    if (withThumbnails) {
-        [keys addObject:CNContactThumbnailImageDataKey];
-    }
+    ]];
 
     CNContactFetchRequest *fetchRequest = [[CNContactFetchRequest alloc] initWithKeysToFetch:keys];
     [fetchRequest setUnifyResults:YES];
@@ -144,18 +137,15 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
             }
         }
 
-        BOOL allTermsMatch = YES;
-        for (NSString *term in searchTerms) {
-
-            BOOL match = NO;
+        for (NSString *term in searchTerms) {            
+            // nextTerm: continues to the next term in searchTerms; incompleteMatch: skips adding contact to results
             for (NSString *name in names) {
                 if ([name rangeOfString:term options:(NSAnchoredSearch | NSCaseInsensitiveSearch)].location != NSNotFound) {
-                    match = YES;
-                    break;
+                    goto nextTerm;
                 }
             }
 
-            if (!match && [nonNumberRegex firstMatchInString:term options:0 range:NSMakeRange(0, term.length)].range.length == 0) {
+            if ([nonNumberRegex firstMatchInString:term options:0 range:NSMakeRange(0, term.length)].range.length == 0) {
                 if (contactPhoneNumbers.count == 0) {
                     for (CNLabeledValue *labeledValue in [contact valueForKey:CNContactPhoneNumbersKey]) {
                         CNPhoneNumber *phoneNumber = [labeledValue valueForKey:@"value"];
@@ -171,20 +161,16 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
 
                 for (NSString *contactPhoneNumber in contactPhoneNumbers) {
                     if ([contactPhoneNumber containsString:term]) {
-                        match = YES;
-                        break;
+                        goto nextTerm;
                     }
                 }
             }
-            if (!match) {
-                allTermsMatch = NO;
-                break;
-            }
+            goto incompleteMatch;
+            nextTerm:;
         }
 
-        if (allTermsMatch) {
-            [contacts addObject:[self contactToDictionary:contact withThumbnails:withThumbnails]];
-        } 
+        [contacts addObject:[self contactToDictionary:contact withThumbnails:YES]];
+        incompleteMatch:;
     }];
 
     callback(@[[NSNull null], contacts]);
