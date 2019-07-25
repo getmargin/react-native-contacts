@@ -61,7 +61,9 @@ RCT_EXPORT_METHOD(requestPermission:(RCTResponseSenderBlock) callback)
     }];
 }
 
-RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResponseSenderBlock) callback)
+RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
+                                   callback:(RCTResponseSenderBlock) callback
+                                   )
 {
     CNContactStore *contactStore = [[CNContactStore alloc] init];
     if (!contactStore)
@@ -73,29 +75,111 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
                     matchingString:(NSString *)searchString
                           callback:(RCTResponseSenderBlock)callback
 {
-    NSMutableArray *contacts = [[NSMutableArray alloc] init];
+    static NSArray *nameKeys;
+    static NSArray *allKeys;
+    static CNContactFetchRequest *fetchRequest;
+    static NSRegularExpression *wordRegex;
+    static NSRegularExpression *nonNumberRegex;
+    static dispatch_once_t runOnce;
+    dispatch_once(&runOnce, ^{
+        nameKeys = @[
+            CNContactFamilyNameKey,
+            CNContactGivenNameKey,
+            CNContactMiddleNameKey,
+            CNContactNamePrefixKey,
+            CNContactNameSuffixKey,
+            CNContactPreviousFamilyNameKey,
+            CNContactNicknameKey,
+            CNContactPhoneticGivenNameKey,
+            CNContactPhoneticMiddleNameKey,
+            CNContactPhoneticFamilyNameKey
+            ];
+
+        allKeys = [nameKeys arrayByAddingObjectsFromArray:@[
+            CNContactEmailAddressesKey,
+            CNContactPhoneNumbersKey,
+            CNContactPostalAddressesKey,
+            CNContactOrganizationNameKey,
+            CNContactJobTitleKey,
+            CNContactImageDataAvailableKey,
+            CNContactThumbnailImageDataKey,
+            CNContactNoteKey,
+            CNContactUrlAddressesKey,
+            CNContactBirthdayKey
+        ]];
+
+        fetchRequest = [[CNContactFetchRequest alloc] initWithKeysToFetch:allKeys];
+        [fetchRequest setUnifyResults:YES];
+
+        NSError *regexError = nil;
+        wordRegex = [NSRegularExpression regularExpressionWithPattern:@"\\w+"
+                                                              options:0
+                                                                error:&regexError];
+        nonNumberRegex = [NSRegularExpression regularExpressionWithPattern:@"\\D"
+                                                                   options:0
+                                                                     error:&regexError];
+    });
+
+    NSMutableArray<CNContact*> *contacts = [[NSMutableArray alloc] init];    
+    NSMutableArray<NSString*> *searchTerms = [[NSMutableArray alloc]init];
+    for (NSTextCheckingResult *match in [wordRegex matchesInString:searchString options:0 range:NSMakeRange(0, [searchString length])]) {
+        [searchTerms addObject:[searchString substringWithRange:[match range]]];
+    };
+    
     NSError *contactError = nil;
-    NSArray *keys = @[
-                      CNContactEmailAddressesKey,
-                      CNContactPhoneNumbersKey,
-                      CNContactFamilyNameKey,
-                      CNContactGivenNameKey,
-                      CNContactMiddleNameKey,
-                      CNContactPostalAddressesKey,
-                      CNContactOrganizationNameKey,
-                      CNContactJobTitleKey,
-                      CNContactImageDataAvailableKey,
-                      CNContactThumbnailImageDataKey,
-                      CNContactUrlAddressesKey,
-                      CNContactBirthdayKey
-                      ];
-    NSArray *arrayOfContacts = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingName:searchString]
-                                                           keysToFetch:keys
-                                                                 error:&contactError];
-    [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:true];
-        [contacts addObject:contactDictionary];
+    [store enumerateContactsWithFetchRequest:fetchRequest
+                                       error:&contactError
+                                  usingBlock:^(CNContact * __nonnull contact, BOOL * __nonnull stop) {
+        // names are matched from the beginning only. Phone numbers are matched anywhere
+        NSMutableSet<NSString*> *names = [[NSMutableSet alloc] init];
+        NSMutableSet<NSString*> *contactPhoneNumbers = [[NSMutableSet alloc] init];
+
+        for (NSString *nameKey in nameKeys) {
+            NSString *name = [contact valueForKey:nameKey];
+            if (name) {
+                for (NSTextCheckingResult *matchObject in [wordRegex matchesInString:name options:0 range:NSMakeRange(0, name.length)]) {
+                    [names addObject:[name substringWithRange:[matchObject range]]];
+                }
+                [names addObject:name];
+            }
+        }
+
+        for (NSString *term in searchTerms) {            
+            // nextTerm: continues to the next term in searchTerms; skipToNextContact: skips adding contact to results
+            for (NSString *name in names) {
+                if ([name rangeOfString:term options:(NSAnchoredSearch | NSCaseInsensitiveSearch)].location != NSNotFound) {
+                    goto nextTerm;
+                }
+            }
+
+            if ([nonNumberRegex firstMatchInString:term options:0 range:NSMakeRange(0, term.length)].range.length == 0) {
+                if (contactPhoneNumbers.count == 0) {
+                    for (CNLabeledValue *labeledValue in [contact valueForKey:CNContactPhoneNumbersKey]) {
+                        CNPhoneNumber *phoneNumber = [labeledValue valueForKey:@"value"];
+                        NSString *phoneNumberString = phoneNumber.stringValue;
+                        NSString *number = [nonNumberRegex stringByReplacingMatchesInString:phoneNumberString
+                                                                                    options:0
+                                                                                      range:NSMakeRange(0, phoneNumberString.length)
+                                                                               withTemplate:@""];
+                        // TODO enhance to allow non-US country codes
+                        [contactPhoneNumbers addObject:[NSString stringWithFormat:@"1%@", number]];
+                    }
+                }
+
+                for (NSString *contactPhoneNumber in contactPhoneNumbers) {
+                    if ([contactPhoneNumber containsString:term]) {
+                        goto nextTerm;
+                    }
+                }
+            }
+            goto skipToNextContact;
+            nextTerm:;
+        }
+
+        [contacts addObject:[self contactToDictionary:contact withThumbnails:YES]];
+        skipToNextContact:;
     }];
+
     callback(@[[NSNull null], contacts]);
 }
 
