@@ -75,51 +75,58 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
                     matchingString:(NSString *)searchString
                           callback:(RCTResponseSenderBlock)callback
 {
-    NSMutableArray<CNContact*> *contacts = [[NSMutableArray alloc] init];
-    NSError *contactError = nil;
+    static NSArray *nameKeys;
+    static NSArray *allKeys;
+    static CNContactFetchRequest *fetchRequest;
+    static NSRegularExpression *wordRegex;
+    static NSRegularExpression *nonNumberRegex;
+    static dispatch_once_t runOnce;
+    dispatch_once(&runOnce, ^{
+        nameKeys = @[
+            CNContactFamilyNameKey,
+            CNContactGivenNameKey,
+            CNContactMiddleNameKey,
+            CNContactNamePrefixKey,
+            CNContactNameSuffixKey,
+            CNContactPreviousFamilyNameKey,
+            CNContactNicknameKey,
+            CNContactPhoneticGivenNameKey,
+            CNContactPhoneticMiddleNameKey,
+            CNContactPhoneticFamilyNameKey
+            ];
 
-    NSArray *nameKeys = @[
-        CNContactFamilyNameKey,
-        CNContactGivenNameKey,
-        CNContactMiddleNameKey,
-        CNContactNamePrefixKey,
-        CNContactNameSuffixKey,
-        CNContactPreviousFamilyNameKey,
-        CNContactNicknameKey,
-        CNContactPhoneticGivenNameKey,
-        CNContactPhoneticMiddleNameKey,
-        CNContactPhoneticFamilyNameKey
-        ];
+        allKeys = [nameKeys arrayByAddingObjectsFromArray:@[
+            CNContactEmailAddressesKey,
+            CNContactPhoneNumbersKey,
+            CNContactPostalAddressesKey,
+            CNContactOrganizationNameKey,
+            CNContactJobTitleKey,
+            CNContactImageDataAvailableKey,
+            CNContactThumbnailImageDataKey,
+            CNContactNoteKey,
+            CNContactUrlAddressesKey,
+            CNContactBirthdayKey
+        ]];
 
-    NSArray *keys = [nameKeys arrayByAddingObjectsFromArray:@[
-        CNContactEmailAddressesKey,
-        CNContactPhoneNumbersKey,
-        CNContactPostalAddressesKey,
-        CNContactOrganizationNameKey,
-        CNContactJobTitleKey,
-        CNContactImageDataAvailableKey,
-        CNContactThumbnailImageDataKey,
-        CNContactNoteKey,
-        CNContactUrlAddressesKey,
-        CNContactBirthdayKey
-    ]];
+        fetchRequest = [[CNContactFetchRequest alloc] initWithKeysToFetch:allKeys];
+        [fetchRequest setUnifyResults:YES];
 
-    CNContactFetchRequest *fetchRequest = [[CNContactFetchRequest alloc] initWithKeysToFetch:keys];
-    [fetchRequest setUnifyResults:YES];
+        NSError *regexError = nil;
+        wordRegex = [NSRegularExpression regularExpressionWithPattern:@"\\w+"
+                                                              options:0
+                                                                error:&regexError];
+        nonNumberRegex = [NSRegularExpression regularExpressionWithPattern:@"\\D"
+                                                                   options:0
+                                                                     error:&regexError];
+    });
 
-    NSError *regExError = nil;
-    NSRegularExpression *wordRegex = [NSRegularExpression regularExpressionWithPattern:@"\\w+"
-                                                                               options:0
-                                                                                 error:&regExError];
-    NSRegularExpression *nonNumberRegex = [NSRegularExpression regularExpressionWithPattern:@"\\D"
-                                                                                    options:0
-                                                                                      error:&regExError];
-
+    NSMutableArray<CNContact*> *contacts = [[NSMutableArray alloc] init];    
     NSMutableArray<NSString*> *searchTerms = [[NSMutableArray alloc]init];
     for (NSTextCheckingResult *match in [wordRegex matchesInString:searchString options:0 range:NSMakeRange(0, [searchString length])]) {
         [searchTerms addObject:[searchString substringWithRange:[match range]]];
     };
     
+    NSError *contactError = nil;
     [store enumerateContactsWithFetchRequest:fetchRequest
                                        error:&contactError
                                   usingBlock:^(CNContact * __nonnull contact, BOOL * __nonnull stop) {
