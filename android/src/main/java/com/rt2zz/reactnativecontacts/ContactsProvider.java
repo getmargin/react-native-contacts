@@ -4,7 +4,7 @@ import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -447,6 +447,7 @@ public class ContactsProvider {
             contact.putString("recordID", contactId);
             contact.putString("rawContactId", rawContactId);
             contact.putString("givenName", TextUtils.isEmpty(givenName) ? displayName : givenName);
+            contact.putString("displayName", displayName);
             contact.putString("middleName", middleName);
             contact.putString("familyName", familyName);
             contact.putString("prefix", prefix);
