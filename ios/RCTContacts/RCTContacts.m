@@ -145,7 +145,7 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
         }
 
         for (NSString *term in searchTerms) {            
-            // nextTerm: continues to the next term in searchTerms; incompleteMatch: skips adding contact to results
+            // nextTerm: continues to the next term in searchTerms; skipToNextContact: skips adding contact to results
             for (NSString *name in names) {
                 if ([name rangeOfString:term options:(NSAnchoredSearch | NSCaseInsensitiveSearch)].location != NSNotFound) {
                     goto nextTerm;
@@ -172,12 +172,12 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string
                     }
                 }
             }
-            goto incompleteMatch;
+            goto skipToNextContact;
             nextTerm:;
         }
 
         [contacts addObject:[self contactToDictionary:contact withThumbnails:YES]];
-        incompleteMatch:;
+        skipToNextContact:;
     }];
 
     callback(@[[NSNull null], contacts]);
