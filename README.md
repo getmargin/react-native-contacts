@@ -79,7 +79,7 @@ include ':react-native-contacts'
 project(':react-native-contacts').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-contacts/android')
 ```
 
-3. In `android/app/build.gradle`
+2. In `android/app/build.gradle`
 
 ```gradle
 ...
@@ -89,7 +89,7 @@ dependencies {
 }
 ```
 
-4. register module (in MainApplication.java)
+3. register module (in MainApplication.java)
 
 ```java
 import com.rt2zz.reactnativecontacts.ReactNativeContacts; // <--- import
@@ -197,6 +197,7 @@ callback <Function>
 ```
 **NOTE**
 * on Android versions below 8 the entire display name is passed in the `givenName` field. `middleName` and `familyName` will be `""`.
+* on iOS the note field is not available.
 
 ## Adding Contacts
 Currently all fields from the contact record except for thumbnailPath are supported for writing
