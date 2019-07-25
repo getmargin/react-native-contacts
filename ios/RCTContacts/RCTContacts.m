@@ -85,7 +85,7 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
                       CNContactOrganizationNameKey,
                       CNContactJobTitleKey,
                       CNContactImageDataAvailableKey,
-                      CNContactNoteKey,
+                      CNContactThumbnailImageDataKey,
                       CNContactUrlAddressesKey,
                       CNContactBirthdayKey
                       ];
@@ -93,7 +93,7 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
                                                            keysToFetch:keys
                                                                  error:&contactError];
     [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:NO];
+        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:true];
         [contacts addObject:contactDictionary];
     }];
     callback(@[[NSNull null], contacts]);
@@ -140,7 +140,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
                                        CNContactOrganizationNameKey,
                                        CNContactJobTitleKey,
                                        CNContactImageDataAvailableKey,
-                                       CNContactNoteKey,
                                        CNContactUrlAddressesKey,
                                        CNContactBirthdayKey
                                        ]];
@@ -169,7 +168,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
     NSString *middleName = person.middleName;
     NSString *company = person.organizationName;
     NSString *jobTitle = person.jobTitle;
-    NSString *note = person.note;
     NSDateComponents *birthday = person.birthday;
 
     [output setObject:recordID forKey: @"recordID"];
@@ -192,10 +190,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
 
     if(jobTitle){
         [output setObject: (jobTitle) ? jobTitle : @"" forKey:@"jobTitle"];
-    }
-
-    if(note){
-        [output setObject: (note) ? note : @"" forKey:@"note"];
     }
 
     if (birthday) {
@@ -441,7 +435,6 @@ RCT_EXPORT_METHOD(getContactById:(nonnull NSString *)recordID callback:(RCTRespo
                       CNContactOrganizationNameKey,
                       CNContactJobTitleKey,
                       CNContactImageDataAvailableKey,
-                      CNContactNoteKey,
                       CNContactUrlAddressesKey,
                       CNContactBirthdayKey
                       ];
@@ -614,7 +607,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
                              CNContactImageDataAvailableKey,
                              CNContactThumbnailImageDataKey,
                              CNContactImageDataKey,
-                             CNContactNoteKey,
                              CNContactUrlAddressesKey,
                              CNContactBirthdayKey
                              ];
@@ -643,7 +635,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     NSString *middleName = [contactData valueForKey:@"middleName"];
     NSString *company = [contactData valueForKey:@"company"];
     NSString *jobTitle = [contactData valueForKey:@"jobTitle"];
-    NSString *note = [contactData valueForKey:@"note"];
 
     NSDictionary *birthday = [contactData valueForKey:@"birthday"];
 
@@ -652,7 +643,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     contact.middleName = middleName;
     contact.organizationName = company;
     contact.jobTitle = jobTitle;
-    contact.note = note;
 
     if (birthday) {
         NSDateComponents *components;
